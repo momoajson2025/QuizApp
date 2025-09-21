@@ -1,0 +1,251 @@
+
+# QuizRevenue Platform - Local Development Setup Instructions
+
+## Prerequisites
+
+Ensure you have the following installed on your Windows 10 system:
+
+1. **Node.js (v18 or later)**
+   - Download from: https://nodejs.org/
+   - Choose the LTS version
+   - Verify installation: `node --version` and `npm --version`
+
+2. **PostgreSQL (v14 or later)**
+   - Download from: https://www.postgresql.org/download/windows/
+   - During installation, remember your postgres user password
+   - Default port: 5432
+   - Verify installation: Open pgAdmin or run `psql --version`
+
+3. **Git**
+   - Download from: https://git-scm.com/download/win
+   - Use Git Bash for command line operations
+
+## Database Setup
+
+1. **Create Database**
+   ```bash
+   # Connect to PostgreSQL (using Command Prompt or Git Bash)
+   psql -U postgres -h localhost
+   
+   # Create database
+   CREATE DATABASE quizrevenue;
+   
+   # Create user (optional but recommended)
+   CREATE USER quizapp WITH PASSWORD 'your_secure_password';
+   GRANT ALL PRIVILEGES ON DATABASE quizrevenue TO quizapp;
+   
+   # Exit psql
+   \q
+   ```
+
+## Project Setup
+
+1. **Clone/Download the Project**
+   ```bash
+   git clone <your-repo-url>
+   cd quizrevenue-platform
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Environment Configuration**
+   
+   Copy `.env.example` to `.env`:
+   ```bash
+   copy .env.example .env
+   ```
+   
+   **Required Environment Variables to Update in .env:**
+   
+   ```env
+   # Database Configuration
+   DATABASE_URL="postgresql://postgres:your_password@localhost:5432/quizrevenue"
+   
+   # Or use individual connection details
+   PGHOST="localhost"
+   PGPORT="5432"
+   PGDATABASE="quizrevenue"
+   PGUSER="postgres"
+   PGPASSWORD="your_postgres_password"
+   
+   # Session Management
+   SESSION_SECRET="your-super-secret-session-key-change-this-in-production"
+   
+   # Application Configuration
+   NODE_ENV="development"
+   PORT="5000"
+   
+   # Email Configuration (for development - use Mailtrap)
+   SMTP_HOST="sandbox.smtp.mailtrap.io"
+   SMTP_PORT="2525"
+   SMTP_USER="your_mailtrap_username"
+   SMTP_PASS="your_mailtrap_password"
+   FROM_EMAIL="noreply@quizrevenue.com"
+   ```
+
+4. **Database Migration and Seeding**
+   
+   Generate and run migrations:
+   ```bash
+   npx drizzle-kit generate
+   npx drizzle-kit migrate
+   ```
+   
+   Seed the database with initial data:
+   ```bash
+   npx tsx server/seed.ts
+   ```
+
+## Project File Modifications for Local Development
+
+### 1. Update server/db.ts (if needed)
+
+The current configuration should work, but ensure your DATABASE_URL is correct:
+
+```typescript
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from "@shared/schema";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL must be set. Did you forget to provision a database?",
+  );
+}
+
+export const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+export const db = drizzle(pool, { schema });
+```
+
+### 2. Verify drizzle.config.ts
+
+Should be configured correctly for local PostgreSQL:
+
+```typescript
+import { defineConfig } from "drizzle-kit";
+
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL, ensure the database is provisioned");
+}
+
+export default defineConfig({
+  out: "./migrations",
+  schema: "./shared/schema.ts",
+  dialect: "postgresql",
+  dbCredentials: {
+    url: process.env.DATABASE_URL,
+  },
+});
+```
+
+## Running the Application
+
+1. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
+
+2. **Access the Application**
+   - Open browser and go to: `http://localhost:5000`
+
+3. **Login with SuperAdmin**
+   - Email: `superadmin@quizads.com`
+   - Password: `SuperAdmin123!`
+
+## Common Issues and Solutions
+
+### Issue 1: "relation 'users' does not exist"
+**Solution:** Run database migrations
+```bash
+npx drizzle-kit migrate
+npx tsx server/seed.ts
+```
+
+### Issue 2: Connection refused to PostgreSQL
+**Solution:** 
+- Ensure PostgreSQL service is running
+- Check Windows Services → PostgreSQL
+- Verify connection details in .env file
+
+### Issue 3: Permission denied for database
+**Solution:**
+- Grant proper permissions to your user
+- Or use the postgres superuser account
+
+### Issue 4: Port 5000 already in use
+**Solution:**
+- Change PORT in .env file to another port (e.g., 3000, 8000)
+- Or stop the service using port 5000
+
+## Development Workflow
+
+1. **Making Database Changes**
+   ```bash
+   # After modifying shared/schema.ts
+   npx drizzle-kit generate
+   npx drizzle-kit migrate
+   ```
+
+2. **Viewing Database**
+   - Use pgAdmin (installed with PostgreSQL)
+   - Or use VSCode extensions like PostgreSQL Explorer
+
+3. **Resetting Database**
+   ```bash
+   # Drop and recreate database
+   psql -U postgres -c "DROP DATABASE quizrevenue;"
+   psql -U postgres -c "CREATE DATABASE quizrevenue;"
+   
+   # Re-run migrations
+   npx drizzle-kit migrate
+   npx tsx server/seed.ts
+   ```
+
+## Testing Email Functionality
+
+1. **Setup Mailtrap Account**
+   - Sign up at https://mailtrap.io/
+   - Get SMTP credentials from your inbox
+   - Update SMTP settings in .env file
+
+2. **Alternative: Use Console Logging**
+   - For development, emails will be logged to console if SMTP is not configured
+
+## Production Deployment Notes
+
+When ready to deploy:
+- Update all environment variables for production
+- Use proper SMTP service (SendGrid, AWS SES, etc.)
+- Set NODE_ENV to "production"
+- Use strong SESSION_SECRET
+- Configure proper SSL certificates
+
+## Project Structure
+
+```
+quizrevenue-platform/
+├── client/                 # React frontend
+├── server/                 # Express backend
+├── shared/                 # Shared types and schemas
+├── migrations/             # Database migrations
+├── .env                   # Environment variables
+├── package.json           # Dependencies
+└── drizzle.config.ts      # Database configuration
+```
+
+## Support
+
+If you encounter issues:
+1. Check the console logs for error messages
+2. Verify your .env configuration
+3. Ensure PostgreSQL is running
+4. Check database connection and permissions
+
+Happy coding! 🚀
